@@ -21,6 +21,7 @@ import time
 import timeit
 import traceback
 import typing
+import wandb
 
 os.environ["OMP_NUM_THREADS"] = "1"  # Necessary for multithreading.
 
@@ -68,6 +69,10 @@ parser.add_argument("--disable_cuda", action="store_true",
                     help="Disable CUDA.")
 parser.add_argument("--use_lstm", action="store_true",
                     help="Use LSTM in agent model.")
+parser.add_argument("--num_layers", default=1, type=int,
+                    help="Number hidden layers.")
+parser.add_argument("--hidden_size", default=512, type=int,
+                    help="Dim of model activations.")
 
 # Loss settings.
 parser.add_argument("--entropy_cost", default=0.0006,
@@ -93,6 +98,9 @@ parser.add_argument("--grad_norm_clipping", default=40.0, type=float,
                     help="Global gradient norm clip.")
 # yapf: enable
 
+# Proxy settings
+parser.add_argument("--fuel_multiplier", default=1.0, type=float,
+                    help="How much to increase the score of shooting a fuel cannister to be.")
 
 logging.basicConfig(
     format=(
@@ -277,9 +285,12 @@ def learn(
         total_loss = pg_loss + baseline_loss + entropy_loss
 
         episode_returns = batch["episode_return"][batch["done"]]
+        episode_true_returns = batch["episode_true_return"][batch["done"]]
         stats = {
             "episode_returns": tuple(episode_returns.cpu().numpy()),
+            "episode_true_returns": tuple(episode_true_returns.cpu().numpy()),
             "mean_episode_return": torch.mean(episode_returns).item(),
+            "mean_episode_true_return": torch.mean(episode_true_returns).item(),
             "total_loss": total_loss.item(),
             "pg_loss": pg_loss.item(),
             "baseline_loss": baseline_loss.item(),
@@ -301,8 +312,10 @@ def create_buffers(flags, obs_shape, num_actions) -> Buffers:
     specs = dict(
         frame=dict(size=(T + 1, *obs_shape), dtype=torch.uint8),
         reward=dict(size=(T + 1,), dtype=torch.float32),
+        true_reward=dict(size=(T + 1,), dtype=torch.float32),
         done=dict(size=(T + 1,), dtype=torch.bool),
         episode_return=dict(size=(T + 1,), dtype=torch.float32),
+        episode_true_return=dict(size=(T + 1,), dtype=torch.float32),
         episode_step=dict(size=(T + 1,), dtype=torch.int32),
         policy_logits=dict(size=(T + 1, num_actions), dtype=torch.float32),
         baseline=dict(size=(T + 1,), dtype=torch.float32),
@@ -346,7 +359,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
     env = create_env(flags)
 
-    model = Net(env.observation_space.shape, env.action_space.n, flags.use_lstm)
+    model = Net(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
     buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
 
     model.share_memory()
@@ -401,6 +414,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     stat_keys = [
         "total_loss",
         "mean_episode_return",
+        "mean_episode_true_return"
         "pg_loss",
         "baseline_loss",
         "entropy_loss",
@@ -461,6 +475,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
             checkpointpath,
         )
 
+    wandb.init(project="test-space", entity="aypan17", group="atari")
     timer = timeit.default_timer
     try:
         last_checkpoint_time = timer()
@@ -480,13 +495,22 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
                 )
             else:
                 mean_return = ""
+            if stats.get("episode_true_returns", None):
+                mean_true_return = (
+                    "True return per episode: %.1f. " % stats["mean_episode_true_return"]
+                )
+            else:
+                mean_true_return = ""
             total_loss = stats.get("total_loss", float("inf"))
+            if stats.get("episode_returns", None) and stats.get("true_episode_returns", None)
+                wandb.log({"loss":total_loss, "episode_return": stats["mean_episode_return"], "true_episode_return": stats["mean_episode_true_return"]})
             logging.info(
-                "Steps %i @ %.1f SPS. Loss %f. %sStats:\n%s",
+                "Steps %i @ %.1f SPS. Loss %f. %s%sStats:\n%s",
                 step,
                 sps,
                 total_loss,
                 mean_return,
+                mean_true_return,
                 pprint.pformat(stats),
             )
     except KeyboardInterrupt:
@@ -522,6 +546,7 @@ def test(flags, num_episodes: int = 10):
 
     observation = env.initial()
     returns = []
+    true_returns = []
 
     while len(returns) < num_episodes:
         if flags.mode == "test_render":
@@ -531,19 +556,24 @@ def test(flags, num_episodes: int = 10):
         observation = env.step(policy_outputs["action"])
         if observation["done"].item():
             returns.append(observation["episode_return"].item())
+            true_returns.append(observation["episode_true_return"].item())
             logging.info(
-                "Episode ended after %d steps. Return: %.1f",
+                "Episode ended after %d steps. Return: %.1f. True return: %.1f",
                 observation["episode_step"].item(),
                 observation["episode_return"].item(),
+                observation["episode_true_return"].item()
             )
     env.close()
     logging.info(
         "Average returns over %i steps: %.1f", num_episodes, sum(returns) / len(returns)
     )
+    logging.info(
+        "Average true returns over %i steps: %.1f", num_episodes, sum(true_returns) / len(true_returns)
+    )
 
 
 class AtariNet(nn.Module):
-    def __init__(self, observation_shape, num_actions, use_lstm=False):
+    def __init__(self, observation_shape, num_actions, num_layers=1, hidden_size=512, use_lstm=False):
         super(AtariNet, self).__init__()
         self.observation_shape = observation_shape
         self.num_actions = num_actions
@@ -559,7 +589,7 @@ class AtariNet(nn.Module):
         self.conv3 = nn.Conv2d(64, 64, kernel_size=3, stride=1)
 
         # Fully connected layer.
-        self.fc = nn.Linear(3136, 512)
+        self.fc = nn.ModuleList([nn.Linear(3136, hidden_size)] + [nn.Linear(hidden_size, hidden_size)] * (num_layers-1))
 
         # FC output size + one-hot of last action + last reward.
         core_output_size = self.fc.out_features + num_actions + 1
@@ -588,7 +618,8 @@ class AtariNet(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
         x = x.view(T * B, -1)
-        x = F.relu(self.fc(x))
+        for layer in self.fc:
+            x = F.relu(layer(x))
 
         one_hot_last_action = F.one_hot(
             inputs["last_action"].view(T * B), self.num_actions
@@ -642,6 +673,7 @@ def create_env(flags):
             clip_rewards=False,
             frame_stack=True,
             scale=False,
+            fuel_multiplier=flags.fuel_multiplier,
         )
     )
 

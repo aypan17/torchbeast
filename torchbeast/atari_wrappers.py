@@ -153,6 +153,16 @@ class ClipRewardEnv(gym.RewardWrapper):
         """Bin reward to {+1, 0, -1} by its sign."""
         return np.sign(reward)
 
+class FuelEnv(gym.RewardWrapper):
+    def __init__(self, env, fuel_multiplier):
+        gym.RewardWrapper.__init__(self, env)
+
+    def reward(self, reward):
+        """ Multiply fuel points in river raider. """
+        self.true_reward = reward
+        if reward == 30:
+            return reward * fuel_multiplier
+
 
 class WarpFrame(gym.ObservationWrapper):
     def __init__(self, env, width=84, height=84, grayscale=True, dict_space_key=None):
@@ -296,7 +306,7 @@ def make_atari(env_id, max_episode_steps=None):
 
     return env
 
-def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, scale=False):
+def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, scale=False, fuel_multiplier=1, fuel_bonus=0):
     """Configure environment for DeepMind-style Atari.
     """
     if episode_life:
@@ -306,6 +316,7 @@ def wrap_deepmind(env, episode_life=True, clip_rewards=True, frame_stack=False, 
     env = WarpFrame(env)
     if scale:
         env = ScaledFloatFrame(env)
+    env = FuelEnv(env, fuel_multiplier)
     if clip_rewards:
         env = ClipRewardEnv(env)
     if frame_stack:
