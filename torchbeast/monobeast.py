@@ -502,7 +502,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
             else:
                 mean_true_return = ""
             total_loss = stats.get("total_loss", float("inf"))
-            if stats.get("episode_returns", None) and stats.get("true_episode_returns", None)
+            if stats.get("episode_returns", None) and stats.get("true_episode_returns", None):
                 wandb.log({"loss":total_loss, "episode_return": stats["mean_episode_return"], "true_episode_return": stats["mean_episode_true_return"]})
             logging.info(
                 "Steps %i @ %.1f SPS. Loss %f. %s%sStats:\n%s",
