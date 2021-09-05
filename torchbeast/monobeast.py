@@ -592,7 +592,7 @@ class AtariNet(nn.Module):
         self.fc = nn.ModuleList([nn.Linear(3136, hidden_size)] + [nn.Linear(hidden_size, hidden_size)] * (num_layers-1))
 
         # FC output size + one-hot of last action + last reward.
-        core_output_size = self.fc.out_features + num_actions + 1
+        core_output_size = hidden_size + num_actions + 1
 
         self.use_lstm = use_lstm
         if use_lstm:
