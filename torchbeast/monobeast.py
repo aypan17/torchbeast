@@ -414,7 +414,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
     stat_keys = [
         "total_loss",
         "mean_episode_return",
-        "mean_episode_true_return"
+        "mean_episode_true_return",
         "pg_loss",
         "baseline_loss",
         "entropy_loss",
