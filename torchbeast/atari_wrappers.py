@@ -158,10 +158,9 @@ class FuelEnv(gym.RewardWrapper):
         gym.RewardWrapper.__init__(self, env)
 
     def reward(self, reward):
-        """ Multiply fuel points in river raider. """
+        """ Multiply fuel points in river raider. Each fuel is 80 pts."""
         self.true_reward = reward
-        if reward == 30:
-            return reward * fuel_multiplier
+        return reward * fuel_multiplier if reward == 80 else reward
 
 
 class WarpFrame(gym.ObservationWrapper):
