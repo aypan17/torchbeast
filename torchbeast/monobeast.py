@@ -36,6 +36,8 @@ from torchbeast.core import file_writer
 from torchbeast.core import prof
 from torchbeast.core import vtrace
 
+import numpy as np
+
 
 # yapf: disable
 parser = argparse.ArgumentParser(description="PyTorch Scalable Agent")
