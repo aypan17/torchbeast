@@ -392,9 +392,9 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         )
         actor.start()
         actor_processes.append(actor)
-
+        
     learner_model = Net(
-        env.observation_space.shape, env.action_space.n, flags.use_lstm
+        env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
     ).to(device=flags.device)
 
     optimizer = torch.optim.RMSprop(
@@ -539,7 +539,7 @@ def test(flags, num_episodes: int = 10):
 
     gym_env = create_env(flags)
     env = environment.Environment(gym_env)
-    model = Net(gym_env.observation_space.shape, gym_env.action_space.n, flags.use_lstm)
+    model = Net(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
     model.eval()
     checkpoint = torch.load(checkpointpath, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
