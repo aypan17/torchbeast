@@ -547,6 +547,7 @@ def test(flags, num_episodes: int = 10):
     observation = env.initial()
     returns = []
     true_returns = []
+    lens = []
 
     while len(returns) < num_episodes:
         if flags.mode == "test_render":
@@ -557,6 +558,7 @@ def test(flags, num_episodes: int = 10):
         if observation["done"].item():
             returns.append(observation["episode_return"].item())
             true_returns.append(observation["episode_true_return"].item())
+            lens.append(observation["episode_step"].item())
             logging.info(
                 "Episode ended after %d steps. Return: %.1f. True return: %.1f",
                 observation["episode_step"].item(),
@@ -565,10 +567,13 @@ def test(flags, num_episodes: int = 10):
             )
     env.close()
     logging.info(
-        "Average returns over %i steps: %.1f", num_episodes, sum(returns) / len(returns)
+        "Average returns over %i episodes: %.1f", num_episodes, sum(returns) / len(returns)
     )
     logging.info(
-        "Average true returns over %i steps: %.1f", num_episodes, sum(true_returns) / len(true_returns)
+        "Average true returns over %i episodes: %.1f", num_episodes, sum(true_returns) / len(true_returns)
+    )
+    logging.info(
+        "Average num steps over %i episodes: %.1f", num_episodes, sum(lens) / len(lens)
     )
 
 
