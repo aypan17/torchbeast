@@ -556,7 +556,7 @@ def test(flags, num_episodes: int = 10):
         policy_outputs, _ = agent_outputs
         observation = env.step(policy_outputs["action"])
         if observation["done"].item():
-            if observation["episode_step"].item() > 200:
+            if observation["episode_return"].item() > 100 * flags.fuel_multiplier:
                 returns.append(observation["episode_return"].item())
                 true_returns.append(observation["episode_true_return"].item())
                 lens.append(observation["episode_step"].item())
