@@ -49,6 +49,8 @@ parser.add_argument("--mode", default="train",
                     help="Training or test mode.")
 parser.add_argument("--xpid", default=None,
                     help="Experiment id (default: None).")
+parser.add_argument("--num_episodes", type=int, default=10,
+                    help="Num eval episodes.")
 
 # Training settings.
 parser.add_argument("--disable_checkpoint", action="store_true",
@@ -701,7 +703,7 @@ def main(flags):
     if flags.mode == "train":
         train(flags)
     else:
-        test(flags)
+        test(flags, num_episodes=)
 
 
 if __name__ == "__main__":
