@@ -573,23 +573,25 @@ def test(flags, num_episodes: int = 10):
                     observation["episode_true_return"].item() / observation["episode_step"].item()
                 )
     env.close()
+    lens = np.array(lens)
     returns = np.array(returns)
     true_returns = np.array(true_returns)
-    lens = np.array(lens)
+    return_per_step = returns / lens
+    true_return_per_step = true_returns / lens
     logging.info(
-        "Average returns over %i episodes: %.1f", num_episodes, np.mean(returns).item()
+        "Average returns over %i episodes: %.1f +/- %.1f", num_episodes, np.mean(returns).item(), np.std(returns).item()
     )
     logging.info(
-        "Average true returns over %i episodes: %.1f", num_episodes, np.mean(true_returns).item()
+        "Average true returns over %i episodes: %.1f +/- %.1f", num_episodes, np.mean(true_returns).item(), np.std(true_returns).item()
     )
     logging.info(
-        "Average return/step over %i episodes: %.1f", num_episodes, np.mean(returns / lens).item()
+        "Average return/step over %i episodes: %.1f +/- %.1f", num_episodes, np.mean(return_per_step).item(), np.std(return_per_step).item()
     )
     logging.info(
-        "Average true return/step over %i episodes: %.1f", num_episodes, np.mean(true_returns / lens).item()
+        "Average true return/step over %i episodes: %.1f +/- %.1f", num_episodes, np.mean(true_return_per_step).item(), np.std(true_return_per_step).item()
     )
     logging.info(
-        "Average num steps over %i episodes: %.1f", num_episodes, np.mean(lens)
+        "Average num steps over %i episodes: %.1f +/- %.1f", num_episodes, np.mean(lens).item(), np.std(lens).item()
     )
 
 
