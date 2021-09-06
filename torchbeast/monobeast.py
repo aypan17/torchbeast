@@ -703,7 +703,7 @@ def main(flags):
     if flags.mode == "train":
         train(flags)
     else:
-        test(flags, num_episodes=)
+        test(flags, num_episodes=flags.num_episodes)
 
 
 if __name__ == "__main__":
