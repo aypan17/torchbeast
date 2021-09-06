@@ -556,15 +556,16 @@ def test(flags, num_episodes: int = 10):
         policy_outputs, _ = agent_outputs
         observation = env.step(policy_outputs["action"])
         if observation["done"].item():
-            returns.append(observation["episode_return"].item())
-            true_returns.append(observation["episode_true_return"].item())
-            lens.append(observation["episode_step"].item())
-            logging.info(
-                "Episode ended after %d steps. Return: %.1f. True return: %.1f",
-                observation["episode_step"].item(),
-                observation["episode_return"].item(),
-                observation["episode_true_return"].item()
-            )
+            if observation["episode_step"].item() > 200:
+                returns.append(observation["episode_return"].item())
+                true_returns.append(observation["episode_true_return"].item())
+                lens.append(observation["episode_step"].item())
+                logging.info(
+                    "Episode ended after %d steps. Return: %.1f. True return: %.1f",
+                    observation["episode_step"].item(),
+                    observation["episode_return"].item(),
+                    observation["episode_true_return"].item()
+                )
     env.close()
     logging.info(
         "Average returns over %i episodes: %.1f", num_episodes, sum(returns) / len(returns)
