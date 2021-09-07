@@ -548,7 +548,6 @@ def test(flags, num_episodes: int = 10):
     checkpoint = torch.load(checkpointpath, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    observation = env.initial()
     returns = []
     true_returns = []
     lens = []
@@ -557,13 +556,14 @@ def test(flags, num_episodes: int = 10):
         tmp_ret = []
         tmp_true = []
         tmp_lens = []
+        observation = env.initial()
+        agent_state = model.initial_state(batch_size=1)
         while len(tmp_ret) < num_episodes:
             if flags.mode == "test_render":
                 env.gym_env.render()
-            agent_outputs = model(observation)
+            agent_outputs = model(observation, agent_state)
             policy_outputs, _ = agent_outputs
             observation = env.step(policy_outputs["action"])
-            print("hi")
             if observation["done"].item():
                 tmp_ret.append(observation["episode_return"].item())
                 tmp_true.append(observation["episode_true_return"].item())
