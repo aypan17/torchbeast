@@ -561,7 +561,7 @@ def test(flags, num_episodes: int = 10):
         while len(tmp_ret) < num_episodes:
             if flags.mode == "test_render":
                 env.gym_env.render()
-            agent_outputs = model(observation, agent_state)
+            agent_outputs, agent_state = model(observation, agent_state)
             policy_outputs, _ = agent_outputs
             observation = env.step(policy_outputs["action"])
             if observation["done"].item():
