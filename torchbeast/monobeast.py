@@ -553,17 +553,20 @@ def test(flags, num_episodes: int = 10):
     true_returns = []
     lens = []
 
-    while len(returns) < num_episodes:
-        if flags.mode == "test_render":
-            env.gym_env.render()
-        agent_outputs = model(observation)
-        policy_outputs, _ = agent_outputs
-        observation = env.step(policy_outputs["action"])
-        if observation["done"].item():
-            if observation["episode_return"].item() > 100 * flags.fuel_multiplier:
-                returns.append(observation["episode_return"].item())
-                true_returns.append(observation["episode_true_return"].item())
-                lens.append(observation["episode_step"].item())
+    for i in range(5):
+        tmp_ret = []
+        tmp_true = []
+        tmp_lens = []
+        while len(tmp_ret) < num_episodes:
+            if flags.mode == "test_render":
+                env.gym_env.render()
+            agent_outputs = model(observation)
+            policy_outputs, _ = agent_outputs
+            observation = env.step(policy_outputs["action"])
+            if observation["done"].item():
+                tmp_ret.append(observation["episode_return"].item())
+                tmp_true.append(observation["episode_true_return"].item())
+                tmp_lens.append(observation["episode_step"].item())
                 logging.info(
                     "Episode ended after %d steps. Return: %.1f. True return: %.1f. Return per step: %.1f. True return per step: %.1f",
                     observation["episode_step"].item(),
@@ -572,6 +575,9 @@ def test(flags, num_episodes: int = 10):
                     observation["episode_return"].item() / observation["episode_step"].item(),
                     observation["episode_true_return"].item() / observation["episode_step"].item()
                 )
+        returns.append(np.median(tmp_ret))
+        true_returns.append(np.median(tmp_true))
+        lens.append(np.median(tmp_lens))
     env.close()
     lens = np.array(lens)
     returns = np.array(returns)
