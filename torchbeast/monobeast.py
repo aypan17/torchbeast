@@ -563,6 +563,7 @@ def test(flags, num_episodes: int = 10):
             agent_outputs = model(observation)
             policy_outputs, _ = agent_outputs
             observation = env.step(policy_outputs["action"])
+            print("hi")
             if observation["done"].item():
                 tmp_ret.append(observation["episode_return"].item())
                 tmp_true.append(observation["episode_true_return"].item())
