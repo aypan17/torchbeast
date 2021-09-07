@@ -157,11 +157,21 @@ class FuelEnv(gym.RewardWrapper):
     def __init__(self, env, fuel_multiplier):
         gym.RewardWrapper.__init__(self, env)
         self.fuel_multiplier = fuel_multiplier
+        self.pacifist = False
+        if fuel_multiplier < 0:
+            self.pacifist = True
 
     def reward(self, reward):
         """ Multiply fuel points in river raider. Each fuel is 80 pts."""
         self.true_reward = reward
-        return reward * self.fuel_multiplier if reward == 80 else reward / 10.0
+        if self.pacifist:
+            reward = 20
+            if self.env.unwrapped._get_ram()[50] != 180:
+                reward += self.fuel_multiplier
+        else:
+            if reward == 80:
+                reward *= self.fuel_multiplier
+        return reward
 
 
 class WarpFrame(gym.ObservationWrapper):
