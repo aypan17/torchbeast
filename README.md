@@ -1,3 +1,5 @@
+Seaquest file taken from https://github.com/dgriff777/rl_a3c_pytorch
+
 
 # TorchBeast
 A PyTorch implementation of [IMPALA: Scalable Distributed

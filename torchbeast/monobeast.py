@@ -21,7 +21,7 @@ import time
 import timeit
 import traceback
 import typing
-import wandb
+#import wandb
 
 os.environ["OMP_NUM_THREADS"] = "1"  # Necessary for multithreading.
 
@@ -51,6 +51,8 @@ parser.add_argument("--xpid", default=None,
                     help="Experiment id (default: None).")
 parser.add_argument("--num_episodes", type=int, default=10,
                     help="Num eval episodes.")
+parser.add_argument("--pretrained", default=None, type=str,
+                    help="Whether or not to use a pretrained featurizer.")
 
 # Training settings.
 parser.add_argument("--disable_checkpoint", action="store_true",
@@ -363,7 +365,22 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
     env = create_env(flags)
 
-    model = Net(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+    if args.pretrained:
+        model = FNet(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+
+        pretrained_dict = torch.load(args.pretrained)
+        model_dict = model.state_dict()
+
+        # 1. filter out unnecessary keys
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
+        # 2. overwrite entries in the existing state dict
+        model_dict.update(pretrained_dict) 
+        # 3. load the new state dict
+        model.load_state_dict(pretrained_dict)
+    else:
+        model = Net(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+
+
     buffers = create_buffers(flags, env.observation_space.shape, model.num_actions)
 
     model.share_memory()
@@ -397,9 +414,25 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         actor.start()
         actor_processes.append(actor)
 
-    learner_model = Net(
-        env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
-    ).to(device=flags.device)
+    if args.pretrained:
+        learner_model = FNet(
+            env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
+        ).to(device=flags.device)
+
+        pretrained_dict = torch.load(args.pretrained)
+        learned_model_dict = learner_model.state_dict()
+
+        # 1. filter out unnecessary keys
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in learner_model_dict}
+        # 2. overwrite entries in the existing state dict
+        learner_model_dict.update(pretrained_dict) 
+        # 3. load the new state dict
+        learner_model.load_state_dict(pretrained_dict)
+
+    else:
+        learner_model = Net(
+            env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
+        ).to(device=flags.device)
 
     optimizer = torch.optim.RMSprop(
         learner_model.parameters(),
@@ -543,7 +576,10 @@ def test(flags, num_episodes: int = 10):
 
     gym_env = create_env(flags)
     env = environment.Environment(gym_env)
-    model = Net(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+    if args.pretrained:
+        model = FNet(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+    else:
+        model = Net(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
     model.eval()
     checkpoint = torch.load(checkpointpath, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -552,7 +588,7 @@ def test(flags, num_episodes: int = 10):
     true_returns = []
     lens = []
 
-    for i in range(5):
+    for i in range(1):
         tmp_ret = []
         tmp_true = []
         tmp_lens = []
@@ -600,6 +636,74 @@ def test(flags, num_episodes: int = 10):
     logging.info(
         "Average num steps over %i episodes: %.1f +/- %.1f", num_episodes, np.mean(lens).item(), np.std(lens).item()
     )
+
+
+class FeaturizedAtariNet(nn.Module):
+    def __init__(self, observation_shape, num_actions, num_layers=1, hidden_size=512, use_lstm=False):
+        super(FeaturizedAtariNet, self).__init__()
+        self.observation_shape = observation_shape
+        self.num_actions = num_actions
+
+        # Feature extraction
+        self.conv1 = nn.Conv2d(num_inputs, 32, 5, stride=1, padding=2)
+        self.maxp1 = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(32, 32, 5, stride=1, padding=1)
+        self.maxp2 = nn.MaxPool2d(2, 2)
+        self.conv3 = nn.Conv2d(32, 64, 4, stride=1, padding=1)
+        self.maxp3 = nn.MaxPool2d(2, 2)
+        self.conv4 = nn.Conv2d(64, 64, 3, stride=1, padding=1)
+        self.maxp4 = nn.MaxPool2d(2, 2)
+
+        # Fully connected layer.
+        self.fc = nn.ModuleList([nn.Linear(1024, hidden_size)] + [nn.Linear(hidden_size, hidden_size)] * (num_layers-1))
+
+        # FC output size + one-hot of last action + last reward.
+        core_output_size = hidden_size + num_actions + 1
+
+        self.policy = nn.Linear(core_output_size, self.num_actions)
+        self.baseline = nn.Linear(core_output_size, 1)
+
+    def initial_state(self, batch_size):
+        return tuple()
+
+    def forward(self, inputs, core_state=()):
+        x = inputs["frame"]  # [T, B, C, H, W].
+        T, B, *_ = x.shape
+        x = torch.flatten(x, 0, 1)  # Merge time and batch.
+        x = F.relu(self.maxp1(self.conv1(inputs)))
+        x = F.relu(self.maxp2(self.conv2(x)))
+        x = F.relu(self.maxp3(self.conv3(x)))
+        x = F.relu(self.maxp4(self.conv4(x)))
+        x = x.view(T * B, -1)
+        for layer in self.fc:
+            x = F.relu(layer(x))
+
+        one_hot_last_action = F.one_hot(
+            inputs["last_action"].view(T * B), self.num_actions
+        ).float()
+        clipped_reward = torch.clamp(inputs["reward"], -1, 1).view(T * B, 1)
+        core_input = torch.cat([x, clipped_reward, one_hot_last_action], dim=-1)
+
+        core_output = core_input
+        core_state = tuple()
+
+        policy_logits = self.policy(core_output)
+        baseline = self.baseline(core_output)
+
+        if self.training:
+            action = torch.multinomial(F.softmax(policy_logits, dim=1), num_samples=1)
+        else:
+            # Don't sample when testing.
+            action = torch.argmax(policy_logits, dim=1)
+
+        policy_logits = policy_logits.view(T, B, self.num_actions)
+        baseline = baseline.view(T, B)
+        action = action.view(T, B)
+
+        return (
+            dict(policy_logits=policy_logits, baseline=baseline, action=action),
+            core_state,
+        )
 
 
 class AtariNet(nn.Module):
@@ -694,7 +798,7 @@ class AtariNet(nn.Module):
 
 
 Net = AtariNet
-
+FNet = FeaturizedAtariNet
 
 def create_env(flags):
     return atari_wrappers.wrap_pytorch(
