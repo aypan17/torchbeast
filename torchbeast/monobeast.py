@@ -152,7 +152,10 @@ def act(
         logging.info("Actor %i started.", actor_index)
         timings = prof.Timings()  # Keep track of how fast things are.
 
-        gym_env = create_env(flags)
+        if flags.pretrained:
+            gym_env = create_env_seaquest(flags)
+        else:
+            gym_env = create_env(flags)
         seed = actor_index ^ int.from_bytes(os.urandom(4), byteorder="little")
         gym_env.seed(seed)
         env = environment.Environment(gym_env)
@@ -363,7 +366,10 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         logging.info("Not using CUDA.")
         flags.device = torch.device("cpu")
 
-    env = create_env(flags)
+    if flags.pretrained:
+        env = create_env_seaquest(flags)
+    else:
+        env = create_env(flags)
 
     if flags.pretrained:
         model = FNet(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
@@ -574,12 +580,15 @@ def test(flags, num_episodes: int = 10):
             os.path.expanduser("%s/%s/%s" % (flags.savedir, flags.xpid, "model.tar"))
         )
 
-    gym_env = create_env(flags)
-    env = environment.Environment(gym_env)
+    
     if flags.pretrained:
         model = FNet(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+        gym_env = create_env_seaquest(flags)
     else:
         model = Net(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
+        gym_env = create_env(flags)
+        
+    env = environment.Environment(gym_env)
     model.eval()
     checkpoint = torch.load(checkpointpath, map_location="cpu")
     model.load_state_dict(checkpoint["model_state_dict"])
@@ -806,6 +815,17 @@ def create_env(flags):
             atari_wrappers.make_atari(flags.env),
             clip_rewards=False,
             frame_stack=True,
+            scale=False,
+            fuel_multiplier=flags.fuel_multiplier,
+        )
+    )
+
+def create_env_seaquest(flags):
+    return atari_wrappers.wrap_pytorch(
+        atari_wrappers.wrap_deepmind(
+            atari_wrappers.make_atari(flags.env),
+            clip_rewards=False,
+            frame_stack=False,
             scale=False,
             fuel_multiplier=flags.fuel_multiplier,
         )
