@@ -645,7 +645,7 @@ class FeaturizedAtariNet(nn.Module):
         self.num_actions = num_actions
 
         # Feature extraction
-        self.conv1 = nn.Conv2d(num_inputs, 32, 5, stride=1, padding=2)
+        self.conv1 = nn.Conv2d(self.observation_shape[0], 32, 5, stride=1, padding=2)
         self.maxp1 = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(32, 32, 5, stride=1, padding=1)
         self.maxp2 = nn.MaxPool2d(2, 2)
