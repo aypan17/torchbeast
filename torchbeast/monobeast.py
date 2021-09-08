@@ -701,9 +701,6 @@ class FeaturizedAtariNet(nn.Module):
         for name, param in state_dict.items():
             if name not in own_state:
                  continue
-            if isinstance(param, Parameter):
-                # backwards compatibility for serialized parameters
-                param = param.data
             own_state[name].copy_(param)
 
 
