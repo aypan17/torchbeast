@@ -660,7 +660,7 @@ class FeaturizedAtariNet(nn.Module):
         x = inputs["frame"]  # [T, B, C, H, W].
         T, B, *_ = x.shape
         x = torch.flatten(x, 0, 1)  # Merge time and batch.
-        x = F.relu(self.maxp1(self.conv1(inputs)))
+        x = F.relu(self.maxp1(self.conv1(x)))
         x = F.relu(self.maxp2(self.conv2(x)))
         x = F.relu(self.maxp3(self.conv3(x)))
         x = F.relu(self.maxp4(self.conv4(x)))
