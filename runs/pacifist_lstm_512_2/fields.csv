@@ -1,2 +1,0 @@
-_tick,_time,step,total_loss,mean_episode_return,mean_episode_true_return,pg_loss,baseline_loss,entropy_loss
-_tick,_time,step,total_loss,mean_episode_return,mean_episode_true_return,pg_loss,baseline_loss,entropy_loss
