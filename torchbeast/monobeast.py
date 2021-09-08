@@ -365,10 +365,10 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
     env = create_env(flags)
 
-    if args.pretrained:
+    if flags.pretrained:
         model = FNet(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
 
-        pretrained_dict = torch.load(args.pretrained)
+        pretrained_dict = torch.load(flags.pretrained)
         model_dict = model.state_dict()
 
         # 1. filter out unnecessary keys
@@ -414,12 +414,12 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         actor.start()
         actor_processes.append(actor)
 
-    if args.pretrained:
+    if flags.pretrained:
         learner_model = FNet(
             env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
         ).to(device=flags.device)
 
-        pretrained_dict = torch.load(args.pretrained)
+        pretrained_dict = torch.load(flags.pretrained)
         learned_model_dict = learner_model.state_dict()
 
         # 1. filter out unnecessary keys
@@ -576,7 +576,7 @@ def test(flags, num_episodes: int = 10):
 
     gym_env = create_env(flags)
     env = environment.Environment(gym_env)
-    if args.pretrained:
+    if flags.pretrained:
         model = FNet(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
     else:
         model = Net(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
