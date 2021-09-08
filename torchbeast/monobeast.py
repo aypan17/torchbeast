@@ -373,16 +373,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
 
     if flags.pretrained:
         model = FNet(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
-
-        pretrained_dict = torch.load(flags.pretrained)
-        model_dict = model.state_dict()
-
-        # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
-        # 2. overwrite entries in the existing state dict
-        model_dict.update(pretrained_dict) 
-        # 3. load the new state dict
-        model.load_state_dict(pretrained_dict)
+        model.load_my_state_dict(torch.load(flags.pretrained))
     else:
         model = Net(env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
 
@@ -424,17 +415,7 @@ def train(flags):  # pylint: disable=too-many-branches, too-many-statements
         learner_model = FNet(
             env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
         ).to(device=flags.device)
-
-        pretrained_dict = torch.load(flags.pretrained)
-        learned_model_dict = learner_model.state_dict()
-
-        # 1. filter out unnecessary keys
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in learner_model_dict}
-        # 2. overwrite entries in the existing state dict
-        learner_model_dict.update(pretrained_dict) 
-        # 3. load the new state dict
-        learner_model.load_state_dict(pretrained_dict)
-
+        learner_model.load_my_state_dict(torch.load(flags.pretrained))
     else:
         learner_model = Net(
             env.observation_space.shape, env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm
@@ -587,7 +568,7 @@ def test(flags, num_episodes: int = 10):
     else:
         model = Net(gym_env.observation_space.shape, gym_env.action_space.n, num_layers=flags.num_layers, hidden_size=flags.hidden_size, use_lstm=flags.use_lstm)
         gym_env = create_env(flags)
-        
+
     env = environment.Environment(gym_env)
     model.eval()
     checkpoint = torch.load(checkpointpath, map_location="cpu")
@@ -713,6 +694,17 @@ class FeaturizedAtariNet(nn.Module):
             dict(policy_logits=policy_logits, baseline=baseline, action=action),
             core_state,
         )
+
+    def load_my_state_dict(self, state_dict):
+ 
+        own_state = self.state_dict()
+        for name, param in state_dict.items():
+            if name not in own_state:
+                 continue
+            if isinstance(param, Parameter):
+                # backwards compatibility for serialized parameters
+                param = param.data
+            own_state[name].copy_(param)
 
 
 class AtariNet(nn.Module):
