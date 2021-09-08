@@ -659,7 +659,7 @@ class FeaturizedAtariNet(nn.Module):
     def forward(self, inputs, core_state=()):
         x = inputs["frame"]  # [T, B, C, H, W].
         T, B, *_ = x.shape
-        x = torch.flatten(x, 0, 1)  # Merge time and batch.
+        x = torch.flatten(x, 0, 1).float()  # Merge time and batch.
         x = F.relu(self.maxp1(self.conv1(x)))
         x = F.relu(self.maxp2(self.conv2(x)))
         x = F.relu(self.maxp3(self.conv3(x)))
